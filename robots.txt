@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://aria.iiitr.ac.in/sitemap.xml

@@ -1,0 +1,73 @@
+name: Preview Deployment
+run-name: Preview Deployment - ${{ github.ref_name }}
+
+env:
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+  VERCEL_EMAIL: ${{ secrets.VERCEL_EMAIL }}
+  PROJECT_NAME: ${{ secrets.VERCEL_PROJECT_NAME }}
+
+on:
+  pull_request:
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      # Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      # Configure Git identity for Vercel
+      - name: Configure Git identity for Vercel
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "${{ env.VERCEL_EMAIL }}"
+
+      # Configure Git Identifier for Vercel
+      - name: Configure Git Identifier for Vercel
+        run: git commit --amend --author="GitHub Actions <${{ env.VERCEL_EMAIL }}>" --no-edit
+
+      # Install Vercel CLI
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      # Link Repository to Vercel Project
+      - name: Link Repository to Vercel Project
+        run: vercel link --yes --token ${{ env.VERCEL_TOKEN }} --project ${{ env.PROJECT_NAME }}
+
+      # Pull Vercel configuration
+      - name: Pull Vercel configuration
+        run: vercel pull --yes --environment=preview --token ${{ env.VERCEL_TOKEN }}
+
+      # Build the static site (no build step — this just packages the output for Vercel)
+      - name: Build project
+        run: vercel build --yes
+
+      # Deploy to Vercel
+      - name: Deploy to Vercel
+        run: |
+          DEPLOY_URL=$(vercel deploy --prebuilt --yes --token ${{ env.VERCEL_TOKEN }})
+          echo "DEPLOY_URL=${DEPLOY_URL}" >> $GITHUB_ENV
+
+      - name: Add comment to PR
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const url = process.env.DEPLOY_URL.trim();
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `🚀 **Deployment Preview**\n\nThe latest changes from this PR have been deployed. You can preview the site here: [View the site](${url})\n\nFeel free to test the deployment and let me know if you encounter any issues!`
+            });
